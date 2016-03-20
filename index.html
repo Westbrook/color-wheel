@@ -1,0 +1,686 @@
+<body>
+    <script src="bower_components/webcomponentsjs/webcomponents-lite.min.js"></script>
+    <link rel="import" href="bower_components/polymer/polymer.html">
+    <link rel="import" href="bower_components/paper-input/paper-input.html">
+    <link rel="import" href="bower_components/iron-label/iron-label.html">
+    <link rel="import" href="bower_components/paper-button/paper-button.html">
+    <link rel="import" href="bower_components/iron-icon/iron-icon.html">
+    <link rel="import" href="bower_components/iron-icons/iron-icons.html">
+    <link rel="import" href="bower_components/iron-flex-layout/iron-flex-layout.html">
+    <style is="custom-style">
+        iron-label {
+            display: block;
+        }
+        .swatch {
+            @apply(--layout);
+            @apply(--layout-center);
+        }
+        iron-icon {
+            cursor: pointer;
+            margin: 0 0 0 5px;
+        }
+    </style>
+    <template is="dom-bind" id="colorWheel">
+        <paper-input
+            id="color"
+            label="Color Set"
+            error-message="Not a supported color."
+            pattern="{{supportedColorsRegex(colorSets)}}"
+            value="{{color}}"
+            on-change="validateColor"></paper-input>
+        <paper-button on-tap="toggleSetsList">{{toggleSetsText(showSetsList)}} Color Sets</paper-button>
+        <template is="dom-if" if="{{showSetsList}}">
+            <template is="dom-repeat" items="{{colorSets}}">
+                <paper-button on-tap="search" data-color$="{{item}}">{{item}}</paper-button>
+            </template>
+        </template>
+        <div hidden$="{{showSetsList}}">
+            <template is="dom-if" if="{{isValidColor(color)}}">
+                <iron-label>
+                    Neighboring Color Sets:
+                    <paper-button on-tap="search" data-color$="{{previousNeighbor(color)}}">{{previousNeighbor(color)}}</paper-button>
+                    <paper-button on-tap="search" data-color$="{{nextNeighbor(color)}}">{{nextNeighbor(color)}}</paper-button>
+                </iron-label>
+                <iron-label>
+                    Opposite Color Set:
+                    <paper-button on-tap="search" data-color$="{{opposite(color)}}">{{opposite(color)}}</paper-button>
+                </iron-label>
+                <iron-label>
+                    Sort:
+                    <paper-button on-tap="sort" data-dir="none">None</paper-button>
+                    <paper-button on-tap="sort" data-dir="asc">Rating Ascending</paper-button>
+                    <paper-button on-tap="sort" data-dir="desc">Rating Descending</paper-button>
+                </iron-label>
+                <iron-label>
+                    Filter:
+                    <paper-button on-tap="filter">{{filterText(showNegative)}} Negative Ratings</paper-button>
+                </iron-label>
+            </template>
+            <template id="colorList" is="dom-repeat" items="{{colorRatings(color)}}">
+                <div class="swatch" style$="{{colorBlockStyle(item)}}">
+                    <iron-icon on-tap="like" style$="{{thumbStyle(item)}}" icon="icons:thumb-up"></iron-icon>
+                    <iron-icon on-tap="dislike" style$="{{thumbStyle(item)}}" icon="icons:thumb-down"></iron-icon>
+                </div>
+            </template>
+        </div>
+    </template>
+    <script>
+        var app = document.querySelector('#colorWheel');
+        app.showSetsList = false;
+        app.toggleSetsText = function(showSetsList) {
+            return (showSetsList) ? 'Hide' : 'Show';
+        };
+        app.toggleSetsList = function() {
+            app.showSetsList = !app.showSetsList;
+        };
+        app.showNegative = true;
+        app.filterText = function(showNegative) {
+            return (showNegative) ? 'Hide' : 'Show';
+        };
+        app.filter = function(e) {
+            e.stopPropagation();
+            app.showNegative = !app.showNegative;
+            this.$.colorList.filter = function(a) {
+                if (app.showNegative) return true;
+                return a.rating >= 0;
+            };
+        };
+        app.sort = function(e) {
+            e.stopPropagation();
+            var dir = e.currentTarget.dataset.dir;
+            switch (dir) {
+            case 'none':
+                this.$.colorList.sort = function() {};
+                break;
+            case 'asc':
+                this.$.colorList.sort = function(a, b) {
+                    return a.rating - b.rating;
+                };
+                break;
+            case 'desc':
+                this.$.colorList.sort = function(a, b) {
+                    return b.rating - a.rating;
+                };
+                break;
+            }
+        };
+        app.like = function(e) {
+            e.model.item.rating = e.model.item.rating + 1 || 1;
+        };
+        app.dislike = function(e) {
+            e.model.item.rating = e.model.item.rating - 1 || -1;
+        };
+        app.search = function(e) {
+            e.stopPropagation();
+            app.color = e.currentTarget.dataset.color;
+            app.showSetsList = false;
+        };
+        app.opposite = function(color) {
+            var i = app.colorSets.indexOf(color) + app.colorSets.length / 2;
+            if (i < 0) i = app.colorSets.length + i;
+            else if (i >= app.colorSets.length) i = i - app.colorSets.length;
+            return app.colorSets[i];
+        };
+        app.previousNeighbor = function(color) {
+            var i = app.colorSets.indexOf(color) - 1;
+            if (i < 0) i = app.colorSets.length + i;
+            return app.colorSets[i];
+        };
+        app.nextNeighbor = function(color) {
+            var i = app.colorSets.indexOf(color) + 1;
+            if (i === app.colorSets.length) i = 0;
+            return app.colorSets[i];
+        };
+        app.isValidColor = function(color) {
+            if (color === '') return false;
+            return app.$.color.validate();
+        };
+        app.validateColor = function() {
+            var color = this.$.color;
+            color.validate()
+            if (color.value === '' || color.valid) {
+                color.autoValidate = false;
+            } else {
+                color.autoValidate = true;
+            }
+        };
+        app.supportedColorsRegex = function(colorSets) {
+            return '(' + colorSets.join('|') + ')';
+        };
+        app.colorRatings = function(color) {
+            if (color === '' || app.colorSets.indexOf(color) === -1) return [];
+            return app.colors[app.colorSets.indexOf(color)].ratings;
+        };
+        app.colorMatch = function(color) {
+            if (color === '' || app.colorSets.indexOf(color) === -1) return [];
+            return app.colors[app.colorSets.indexOf(color)];
+        };
+        app.colorBlockStyle = function(setColor) {
+            return 'border-right: 1px solid #ccc;height: 30px;width: ' + setColor.lightness + ';background:hsl(' + app.colors[app.colorSets.indexOf(app.color)].hue + ',100%, ' + setColor.lightness + ')';
+        };
+        app.thumbStyle = function(setColor) {
+            var opposite = app.opposite(app.color);
+            return 'color: hsla(' + app.colors[app.colorSets.indexOf(opposite)].hue + ',100%, 45%, 0.6)';
+        };
+        app.colorSets = [
+            'reds',
+            'oranges',
+            'yellows',
+            'yellow greens',
+            'greens',
+            'blue greens',
+            'blues',
+            'blue violets',
+            'violets',
+            'mauves',
+            'mauve pinks',
+            'pinks'
+        ];
+        app.colors = [
+            {
+                'colorSet': 'reds',
+                'hue': '0',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            },
+            {
+                'colorSet': 'oranges',
+                'hue': '30',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            },
+            {
+                'colorSet': 'yellows',
+                'hue': '60',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            },
+            {
+                'colorSet': 'yellow greens',
+                'hue': '90',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            },
+            {
+                'colorSet': 'greens',
+                'hue': '120',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            },
+            {
+                'colorSet': 'green blues',
+                'hue': '150',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            },
+            {
+                'colorSet': 'blues',
+                'hue': '180',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            },
+            {
+                'colorSet': 'blue violets',
+                'hue': '210',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            },
+            {
+                'colorSet': 'violets',
+                'hue': '240',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            },
+            {
+                'colorSet': 'mauves',
+                'hue': '270',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            },
+            {
+                'colorSet': 'mauve pinks',
+                'hue': '300',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            },
+            {
+                'colorSet': 'pinks',
+                'hue': '330',
+                'ratings': [
+                    {
+                        'lightness': '15%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '25%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '35%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '45%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '55%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '65%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '75%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '85%',
+                        'rating': 0
+                    },
+                    {
+                        'lightness': '95%',
+                        'rating': 0
+                    }
+                ]
+            }
+        ];
+    </script>
+</body>
