@@ -27,7 +27,8 @@
             error-message="Not a supported color."
             pattern="{{supportedColorsRegex(colorSets)}}"
             value="{{color}}"
-            on-change="validateColor"></paper-input>
+            auto-validate
+        ></paper-input>
         <paper-button on-tap="toggleSetsList">{{toggleSetsText(showSetsList)}} Color Sets</paper-button>
         <template is="dom-if" if="{{showSetsList}}">
             <template is="dom-repeat" items="{{colorSets}}">
@@ -134,15 +135,6 @@
         app.isValidColor = function(color) {
             if (color === '') return false;
             return app.$.color.validate();
-        };
-        app.validateColor = function() {
-            var color = this.$.color;
-            color.validate()
-            if (color.value === '' || color.valid) {
-                color.autoValidate = false;
-            } else {
-                color.autoValidate = true;
-            }
         };
         app.supportedColorsRegex = function(colorSets) {
             return '(' + colorSets.join('|') + ')';
